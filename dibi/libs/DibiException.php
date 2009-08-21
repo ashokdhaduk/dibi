@@ -154,3 +154,14 @@ class DibiDriverException extends DibiException
 	}
 
 }
+
+/**
+ * transaction exception.
+ *
+ * @author     Jakub Vrana
+ * @copyright  Copyright (c) 2009 Jakub Vrana
+ * @package    dibi
+ */
+class DibiTransactionException extends DibiDriverException
+{
+}

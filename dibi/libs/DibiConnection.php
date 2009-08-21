@@ -42,6 +42,9 @@ class DibiConnection extends DibiObject
 
 	/** @var bool  Is in transaction? */
 	private $inTxn = FALSE;
+	
+	/** @var array  Commands in current transaction */
+	private $transaction = array();
 
 
 
@@ -357,6 +360,57 @@ class DibiConnection extends DibiObject
 
 
 	/**
+	 * Executes the transaction-safe SQL query.
+	 * @param  string           SQL statement
+	 * @return DibiResult|int   result set object (if any)
+	 * @throws DibiException
+	 */
+	final public function transactionQuery($sql)
+	{
+		$this->transaction[] = $sql;
+		try {
+			$ret = $this->query($sql);
+		} catch (DibiTransactionException $e) {
+			foreach ($this->transaction as $val) {
+				if (is_array($val)) {
+					list(, $rollback, $result) = $val;
+					if (isset($rollback)) {
+						call_user_func($rollback, $result);
+					}
+				}
+			}
+			foreach ($this->transaction as $val) {
+				if (is_array($val)) {
+					list($function) = $val;
+					$val[2] = call_user_func($function, $this);
+				} else {
+					$ret = $this->query($val);
+				}
+			}
+		}
+		return $ret;
+	}
+
+
+
+	/**
+	 * Executes the transaction-safe function.
+	 * @param  callback         function to be called inside the transaction - gets current connection in parameter
+	 * @param  callback         optional undo function to be called in case of a rollback - gets return value of $function in parameter
+	 * @return DibiResult|int   result set object (if any)
+	 * @throws DibiException
+	 */
+	final public function transactionFunction($function, $rollback = null)
+	{
+		if (!is_callable($function) || (isset($rollback) && !is_callable($rollback))) {
+			throw new DibiException('Transaction function parameter is not callable.');
+		}
+		$this->transaction[] = array($function, $rollback, call_user_func($function, $this));
+	}
+
+
+
+	/**
 	 * Gets the number of affected rows by the last INSERT, UPDATE or DELETE query.
 	 * @return int  number of rows
 	 * @throws DibiException
@@ -433,6 +487,7 @@ class DibiConnection extends DibiObject
 		if (isset($ticket)) {
 			$this->profiler->after($ticket);
 		}
+		$this->transaction = array();
 	}
 
 
@@ -455,6 +510,7 @@ class DibiConnection extends DibiObject
 		if (isset($ticket)) {
 			$this->profiler->after($ticket);
 		}
+		$this->transaction = array();
 	}
 
 
@@ -477,6 +533,7 @@ class DibiConnection extends DibiObject
 		if (isset($ticket)) {
 			$this->profiler->after($ticket);
 		}
+		$this->transaction = array();
 	}
 
 

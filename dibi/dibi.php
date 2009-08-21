@@ -296,6 +296,33 @@ class dibi
 
 
 	/**
+	 * Executes the transaction-safe SQL query - Monostate for DibiConnection::transactionQuery().
+	 * @param  string           SQL statement
+	 * @return DibiResult|int   result set object (if any)
+	 * @throws DibiException
+	 */
+	final public function transactionQuery($sql)
+	{
+		return self::getConnection()->transactionQuery($sql);
+	}
+
+
+
+	/**
+	 * Executes the transaction-safe function - Monostate for DibiConnection::transactionFunction().
+	 * @param  callback         function to be called inside the transaction - gets current connection in parameter
+	 * @param  callback         optional undo function to be called in case of a rollback - gets return value of $function in parameter
+	 * @return DibiResult|int   result set object (if any)
+	 * @throws DibiException
+	 */
+	final public function transactionFunction($function, $rollback = null)
+	{
+		return self::getConnection()->transactionFunction($function, $rollback);
+	}
+
+
+
+	/**
 	 * Generates and prints SQL query - Monostate for DibiConnection::test().
 	 * @param  array|mixed  one or more arguments
 	 * @return bool

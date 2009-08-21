@@ -153,8 +153,13 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver
 	{
 		$this->resultSet = @mysqli_query($this->connection, $sql, $this->buffered ? MYSQLI_STORE_RESULT : MYSQLI_USE_RESULT); // intentionally @
 
-		if (mysqli_errno($this->connection)) {
-			throw new DibiDriverException(mysqli_error($this->connection), mysqli_errno($this->connection), $sql);
+		$errno = mysqli_errno($this->connection);
+		if ($errno) {
+			$error = mysqli_error($this->connection);
+			if ($errno == 1213) { // ER_LOCK_DEADLOCK
+				throw new DibiTransactionException($error, $errno, $sql);
+			}
+			throw new DibiDriverException($error, $errno, $sql);
 		}
 
 		return is_object($this->resultSet) ? clone $this : NULL;
