@@ -4,17 +4,10 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
- * @package    dibi
+ * @package    dibi\drivers
  */
 
 
@@ -31,8 +24,8 @@
  *   - 'resource' - connection resource (optional)
  *
  * @author     Tomáš Kraina, Roman Sklenář
- * @copyright  Copyright (c) 2009
- * @package    dibi
+ * @copyright  Copyright (c) 2010
+ * @package    dibi\drivers
  */
 class DibiFirebirdDriver extends DibiObject implements IDibiDriver
 {
@@ -163,7 +156,6 @@ class DibiFirebirdDriver extends DibiObject implements IDibiDriver
 	public function getInsertId($sequence)
 	{
 		return ibase_gen_id($sequence, 0, $this->connection);
-		//throw new NotSupportedException('Firebird/InterBase does not support autoincrementing.');
 	}
 
 
@@ -223,6 +215,17 @@ class DibiFirebirdDriver extends DibiObject implements IDibiDriver
 		}
 
 		$this->inTransaction = FALSE;
+	}
+
+
+
+	/**
+	 * Is in transaction?
+	 * @return bool
+	 */
+	public function inTransaction()
+	{
+		return $this->inTransaction;
 	}
 
 
@@ -333,7 +336,7 @@ class DibiFirebirdDriver extends DibiObject implements IDibiDriver
 	public function fetch($assoc)
 	{
 		DibiDriverException::tryError();
-		$result = $assoc ? ibase_fetch_assoc($this->resultSet) : ibase_fetch_row($this->resultSet); // intentionally @
+		$result = $assoc ? ibase_fetch_assoc($this->resultSet, IBASE_TEXT) : ibase_fetch_row($this->resultSet, IBASE_TEXT); // intentionally @
 
 		if (DibiDriverException::catchError($msg)) {
 			if (ibase_errcode() == self::ERROR_EXCEPTION_THROWN) {
@@ -800,8 +803,8 @@ class DibiFirebirdDriver extends DibiObject implements IDibiDriver
  * Database procedure exception.
  *
  * @author     Roman Sklenář
- * @copyright  Copyright (c) 2009
- * @package    dibi
+ * @copyright  Copyright (c) 2010
+ * @package    dibi\drivers
  */
 class DibiProcedureException extends DibiException
 {
@@ -820,6 +823,7 @@ class DibiProcedureException extends DibiException
 		parent::__construct($message, (int) $code, $sql);
 		$this->severity = $severity;
 	}
+
 
 
 	/**

@@ -4,17 +4,10 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
- * @package    dibi
+ * @package    dibi\drivers
  */
 
 
@@ -31,9 +24,8 @@
  *   - 'charset' - character encoding to set
  *   - 'resource' - connection resource (optional)
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
- * @package    dibi
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
+ * @package    dibi\drivers
  */
 class DibiOracleDriver extends DibiObject implements IDibiDriver
 {
@@ -107,7 +99,6 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver
 	 */
 	public function query($sql)
 	{
-
 		$this->resultSet = oci_parse($this->connection, $sql);
 		if ($this->resultSet) {
 			oci_execute($this->resultSet, $this->autocommit ? OCI_COMMIT_ON_SUCCESS : OCI_DEFAULT);
@@ -142,7 +133,9 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver
 	 */
 	public function getInsertId($sequence)
 	{
-		throw new NotSupportedException('Oracle does not support autoincrementing.');
+		$this->query("SELECT $sequence.CURRVAL AS ID FROM DUAL");
+		$row = $this->fetch(TRUE);
+		return isset($row['ID']) ? (int) $row['ID'] : FALSE;
 	}
 
 
@@ -189,6 +182,17 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver
 			throw new DibiDriverException($err['message'], $err['code']);
 		}
 		$this->autocommit = TRUE;
+	}
+
+
+
+	/**
+	 * Is in transaction?
+	 * @return bool
+	 */
+	public function inTransaction()
+	{
+		throw new NotSupportedException('Oracle driver does not support transaction testing.');
 	}
 
 

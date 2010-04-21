@@ -4,17 +4,10 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
- * @package    dibi
+ * @package    dibi\drivers
  */
 
 
@@ -30,9 +23,8 @@
  *   - 'lazy' - if TRUE, connection will be established only when required
  *   - 'resource' - connection resource (optional)
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
- * @package    dibi
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
+ * @package    dibi\drivers
  */
 class DibiMsSqlDriver extends DibiObject implements IDibiDriver
 {
@@ -179,6 +171,17 @@ class DibiMsSqlDriver extends DibiObject implements IDibiDriver
 
 
 	/**
+	 * Is in transaction?
+	 * @return bool
+	 */
+	public function inTransaction()
+	{
+		throw new NotSupportedException('MSSQL driver does not support transaction testing.');
+	}
+
+
+
+	/**
 	 * Returns the connection resource.
 	 * @return mixed
 	 */
@@ -256,7 +259,7 @@ class DibiMsSqlDriver extends DibiObject implements IDibiDriver
 	{
 		// offset support is missing
 		if ($limit >= 0) {
-			$sql = 'SELECT TOP ' . (int) $limit . ' * FROM (' . $sql . ')';
+			$sql = 'SELECT TOP ' . (int) $limit . ' * FROM (' . $sql . ') t';
 		}
 
 		if ($offset) {

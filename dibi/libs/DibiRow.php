@@ -4,14 +4,7 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
  * @package    dibi
@@ -22,8 +15,7 @@
 /**
  * Result-set single row.
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  */
 class DibiRow extends ArrayObject
@@ -40,33 +32,34 @@ class DibiRow extends ArrayObject
 
 
 	/**
-	 * Converts value to date-time format.
+	 * Converts value to DateTime object.
 	 * @param  string key
-	 * @param  string format (TRUE means DateTime object)
-	 * @return mixed
+	 * @param  string format
+	 * @return DateTime
 	 */
-	public function asDate($key, $format = NULL)
+	public function asDateTime($key, $format = NULL)
 	{
 		$time = $this[$key];
-		if ($time == NULL) { // intentionally ==
+		if ((int) $time === 0) { // '', NULL, FALSE, '0000-00-00', ...
 			return NULL;
-
-		} elseif ($format === NULL) { // return timestamp (default)
-			return is_numeric($time) ? (int) $time : strtotime($time);
-
-		} elseif ($format === TRUE) { // return DateTime object
-			return new DateTime(is_numeric($time) ? date('Y-m-d H:i:s', $time) : $time);
-
-		} elseif (is_numeric($time)) { // single timestamp
-			return date($format, $time);
-
-		} elseif (class_exists('DateTime', FALSE)) { // since PHP 5.2
-			$time = new DateTime($time);
-			return $time ? $time->format($format) : NULL;
-
-		} else {
-			return date($format, strtotime($time));
 		}
+		$dt = new DateTime53(is_numeric($time) ? date('Y-m-d H:i:s', $time) : $time);
+		return $format === NULL ? $dt : $dt->format($format);
+	}
+
+
+
+	/**
+	 * Converts value to UNIX timestamp.
+	 * @param  string key
+	 * @return int
+	 */
+	public function asTimestamp($key)
+	{
+		$time = $this[$key];
+		return (int) $time === 0 // '', NULL, FALSE, '0000-00-00', ...
+			? NULL
+			: (is_numeric($time) ? (int) $time : strtotime($time));
 	}
 
 
@@ -96,6 +89,18 @@ class DibiRow extends ArrayObject
 	public function __wakeup()
 	{
 		$this->setFlags(2);
+	}
+
+
+
+	/** @deprecated */
+	public function asDate($key, $format = NULL)
+	{
+		if ($format === NULL) {
+			return $this->asTimestamp($key);
+		} else {
+			return $this->asDateTime($key, $format === TRUE ? NULL : $format);
+		}
 	}
 
 }

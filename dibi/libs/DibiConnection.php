@@ -4,14 +4,7 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
  * @package    dibi
@@ -22,8 +15,7 @@
 /**
  * dibi connection.
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  */
 class DibiConnection extends DibiObject
@@ -40,12 +32,9 @@ class DibiConnection extends DibiObject
 	/** @var bool  Is connected? */
 	private $connected = FALSE;
 
-	/** @var bool  Is in transaction? */
-	private $inTxn = FALSE;
 	
 	/** @var array  Commands in current transaction */
 	private $transaction = array();
-
 
 
 	/**
@@ -56,10 +45,6 @@ class DibiConnection extends DibiObject
 	 */
 	public function __construct($config, $name = NULL)
 	{
-		if (class_exists(/*Nette\*/'Debug', FALSE)) {
-			/*Nette\*/Debug::addColophon(array('dibi', 'getColophon'));
-		}
-
 		// DSN string
 		if (is_string($config)) {
 			parse_str($config, $config);
@@ -156,9 +141,6 @@ class DibiConnection extends DibiObject
 	final public function disconnect()
 	{
 		if ($this->connected) {
-			if ($this->inTxn) {
-				$this->rollback();
-			}
 			$this->driver->disconnect();
 			$this->connected = FALSE;
 		}
@@ -335,21 +317,13 @@ class DibiConnection extends DibiObject
 			}
 			$ticket = $this->profiler->before($this, $event, $sql);
 		}
-		// TODO: move to profiler?
-		dibi::$numOfQueries++;
-		dibi::$sql = $sql;
-		dibi::$elapsedTime = FALSE;
-		$time = -microtime(TRUE);
 
+		dibi::$sql = $sql;
 		if ($res = $this->driver->query($sql)) { // intentionally =
 			$res = new DibiResult($res, $this->config);
 		} else {
 			$res = $this->driver->getAffectedRows();
 		}
-
-		$time += microtime(TRUE);
-		dibi::$elapsedTime = $time;
-		dibi::$totalTime += $time;
 
 		if (isset($ticket)) {
 			$this->profiler->after($ticket, $res);
@@ -472,18 +446,10 @@ class DibiConnection extends DibiObject
 	public function begin($savepoint = NULL)
 	{
 		$this->connect();
-		if (!$savepoint && $this->inTxn) {
-			throw new DibiException('There is already an active transaction.');
-		}
 		if ($this->profiler !== NULL) {
 			$ticket = $this->profiler->before($this, IDibiProfiler::BEGIN, $savepoint);
 		}
-		if ($savepoint && !$this->inTxn) {
-			$this->driver->begin();
-		}
 		$this->driver->begin($savepoint);
-
-		$this->inTxn = TRUE;
 		if (isset($ticket)) {
 			$this->profiler->after($ticket);
 		}
@@ -499,14 +465,10 @@ class DibiConnection extends DibiObject
 	 */
 	public function commit($savepoint = NULL)
 	{
-		if (!$this->inTxn) {
-			throw new DibiException('There is no active transaction.');
-		}
 		if ($this->profiler !== NULL) {
 			$ticket = $this->profiler->before($this, IDibiProfiler::COMMIT, $savepoint);
 		}
 		$this->driver->commit($savepoint);
-		$this->inTxn = (bool) $savepoint;
 		if (isset($ticket)) {
 			$this->profiler->after($ticket);
 		}
@@ -522,14 +484,10 @@ class DibiConnection extends DibiObject
 	 */
 	public function rollback($savepoint = NULL)
 	{
-		if (!$this->inTxn) {
-			throw new DibiException('There is no active transaction.');
-		}
 		if ($this->profiler !== NULL) {
 			$ticket = $this->profiler->before($this, IDibiProfiler::ROLLBACK, $savepoint);
 		}
 		$this->driver->rollback($savepoint);
-		$this->inTxn = (bool) $savepoint;
 		if (isset($ticket)) {
 			$this->profiler->after($ticket);
 		}
@@ -544,7 +502,8 @@ class DibiConnection extends DibiObject
 	 */
 	public function inTransaction()
 	{
-		return $this->inTxn;
+		$this->connect();
+		return $this->driver->inTransaction();
 	}
 
 
@@ -686,11 +645,12 @@ class DibiConnection extends DibiObject
 
 	/**
 	 * @param  IDibiProfiler
-	 * @return void
+	 * @return DibiConnection  provides a fluent interface
 	 */
 	public function setProfiler(IDibiProfiler $profiler = NULL)
 	{
 		$this->profiler = $profiler;
+		return $this;
 	}
 
 

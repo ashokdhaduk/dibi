@@ -4,14 +4,14 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
+ * Copyright (c) 2005, 2010 David Grudl (http://davidgrudl.com)
  *
  * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
+ * with this package in the file license.txt, and/or GPL license.
  *
  * For more information please see http://dibiphp.com
  *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
  * @package    dibi
@@ -21,8 +21,8 @@
 /**
  * Check PHP configuration.
  */
-if (version_compare(PHP_VERSION, '5.1.0', '<')) {
-	throw new Exception('dibi needs PHP 5.1.0 or newer.');
+if (version_compare(PHP_VERSION, '5.2.0', '<')) {
+	throw new Exception('dibi needs PHP 5.2.0 or newer.');
 }
 
 @set_magic_quotes_runtime(FALSE); // intentionally @
@@ -33,32 +33,57 @@ if (version_compare(PHP_VERSION, '5.1.0', '<')) {
  * Compatibility with Nette
  */
 if (!class_exists('NotImplementedException', FALSE)) {
+	/** @package exceptions */
 	class NotImplementedException extends LogicException {}
 }
 
 if (!class_exists('NotSupportedException', FALSE)) {
+	/** @package exceptions */
 	class NotSupportedException extends LogicException {}
 }
 
 if (!class_exists('MemberAccessException', FALSE)) {
+	/** @package exceptions */
 	class MemberAccessException extends LogicException {}
 }
 
 if (!class_exists('InvalidStateException', FALSE)) {
+	/** @package exceptions */
 	class InvalidStateException extends RuntimeException {}
 }
 
 if (!class_exists('IOException', FALSE)) {
+	/** @package exceptions */
 	class IOException extends RuntimeException {}
 }
 
 if (!class_exists('FileNotFoundException', FALSE)) {
+	/** @package exceptions */
 	class FileNotFoundException extends IOException {}
 }
 
-if (!interface_exists(/*Nette\*/'IDebuggable', FALSE)) {
-	require_once dirname(__FILE__) . '/Nette/IDebuggable.php';
+if (!interface_exists(/*Nette\*/'IDebugPanel', FALSE)) {
+	require_once dirname(__FILE__) . '/Nette/IDebugPanel.php';
 }
+
+if (!class_exists('DateTime53', FALSE)) {
+	require_once dirname(__FILE__) . '/Nette/DateTime53.php';
+}
+
+
+
+/**
+ * @deprecated
+ */
+class DibiVariable extends DateTime53
+{
+	function __construct($val)
+	{
+		parent::__construct($val);
+	}
+}
+
+
 
 // dibi libraries
 require_once dirname(__FILE__) . '/libs/interfaces.php';
@@ -69,7 +94,6 @@ require_once dirname(__FILE__) . '/libs/DibiResult.php';
 require_once dirname(__FILE__) . '/libs/DibiResultIterator.php';
 require_once dirname(__FILE__) . '/libs/DibiRow.php';
 require_once dirname(__FILE__) . '/libs/DibiTranslator.php';
-require_once dirname(__FILE__) . '/libs/DibiVariable.php';
 require_once dirname(__FILE__) . '/libs/DibiDataSource.php';
 require_once dirname(__FILE__) . '/libs/DibiFluent.php';
 require_once dirname(__FILE__) . '/libs/DibiDatabaseInfo.php';
@@ -85,8 +109,7 @@ require_once dirname(__FILE__) . '/libs/DibiProfiler.php';
  * This class is static container class for creating DB objects and
  * store connections info.
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  */
 class dibi
@@ -121,15 +144,15 @@ class dibi
 	/**#@+
 	 * dibi version
 	 */
-	const VERSION = '1.2-dev';
+	const VERSION = '1.3-dev';
 	const REVISION = '$WCREV$ released on $WCDATE$';
 	/**#@-*/
 
 	/**#@+
 	 * Configuration options
 	 */
-	const RESULT_WITH_TABLES = 'resultWithTables'; // for MySQL
-	const ROW_CLASS = 'rowClass';
+	const RESULT_DETECT_TYPES = 'resultDetectTypes';
+	const RESULT_DATE_TIME = 'resultDateTime';
 	const ASC = 'ASC', DESC = 'DESC';
 	/**#@-*/
 
@@ -597,36 +620,21 @@ class dibi
 
 
 	/**
-	 * Pseudotype for timestamp representation.
-	 * @param  mixed  datetime
-	 * @return DibiVariable
+	 * @deprecated
 	 */
 	public static function datetime($time = NULL)
 	{
-		if ($time === NULL) {
-			$time = time(); // current time
-
-		} elseif (is_numeric($time)) {
-			$time = (int) $time; // timestamp
-
-		} elseif (is_string($time)) {
-			$time = class_exists('DateTime', FALSE) ? new DateTime($time) : strtotime($time); // DateTime is since PHP 5.2
-		}
-		return new DibiVariable($time, dibi::DATETIME);
+		return new DateTime53(is_numeric($time) ? date('Y-m-d H:i:s', $time) : $time);
 	}
 
 
 
 	/**
-	 * Pseudotype for date representation.
-	 * @param  mixed  date
-	 * @return DibiVariable
+	 * @deprecated
 	 */
 	public static function date($date = NULL)
 	{
-		$var = self::datetime($date);
-		$var->modifier = dibi::DATE;
-		return $var;
+		return new DateTime53(is_numeric($date) ? date('Y-m-d', $date) : $date);
 	}
 
 
@@ -724,7 +732,7 @@ class dibi
 
 			$sql = wordwrap($sql, 100);
 			$sql = htmlSpecialChars($sql);
-			$sql = preg_replace("#\n{2,}#", "\n", $sql);
+			$sql = preg_replace("#([ \t]*\r?\n){2,}#", "\n", $sql);
 
 			// syntax highlight
 			$sql = preg_replace_callback("#(/\\*.+?\\*/)|(\\*\\*.+?\\*\\*)|(?<=[\\s,(])($keywords1)(?=[\\s,)])|(?<=[\\s,(=])($keywords2)(?=[\\s,)=])#is", array('dibi', 'highlightCallback'), $sql);
@@ -754,25 +762,6 @@ class dibi
 
 		if (!empty($matches[4])) // other keywords
 			return '<strong style="color:green">' . $matches[4] . '</strong>';
-	}
-
-
-
-	/**
-	 * Returns brief descriptions.
-	 * @return string
-	 * @return array
-	 */
-	public static function getColophon($sender = NULL)
-	{
-		$arr = array(
-			'Number of SQL queries: ' . dibi::$numOfQueries
-			. (dibi::$totalTime === NULL ? '' : ', elapsed time: ' . sprintf('%0.3f', dibi::$totalTime * 1000) . ' ms'),
-		);
-		if ($sender === 'bluescreen') {
-			$arr[] = 'dibi ' . dibi::VERSION . ' (revision ' . dibi::REVISION . ')';
-		}
-		return $arr;
 	}
 
 }

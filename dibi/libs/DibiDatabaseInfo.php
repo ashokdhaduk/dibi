@@ -4,14 +4,7 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
  * @package    dibi
@@ -22,8 +15,7 @@
 /**
  * Reflection metadata class for a database.
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  */
 class DibiDatabaseInfo extends DibiObject
@@ -134,8 +126,7 @@ class DibiDatabaseInfo extends DibiObject
 /**
  * Reflection metadata class for a database table.
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  */
 class DibiTableInfo extends DibiObject
@@ -332,10 +323,110 @@ class DibiTableInfo extends DibiObject
 
 
 /**
- * Reflection metadata class for a table column.
+ * Reflection metadata class for a result set.
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
+ * @package    dibi
+ */
+class DibiResultInfo extends DibiObject
+{
+	/** @var IDibiDriver */
+	private $driver;
+
+	/** @var array */
+	private $columns;
+
+	/** @var array */
+	private $names;
+
+
+
+	public function __construct(IDibiDriver $driver)
+	{
+		$this->driver = $driver;
+	}
+
+
+
+	/**
+	 * @return array of DibiColumnInfo
+	 */
+	public function getColumns()
+	{
+		$this->initColumns();
+		return array_values($this->columns);
+	}
+
+
+
+	/**
+	 * @param  bool
+	 * @return array of string
+	 */
+	public function getColumnNames($fullNames = FALSE)
+	{
+		$this->initColumns();
+		$res = array();
+		foreach ($this->columns as $column) {
+			$res[] = $fullNames ? $column->getFullName() : $column->getName();
+		}
+		return $res;
+	}
+
+
+
+	/**
+	 * @param  string
+	 * @return DibiColumnInfo
+	 */
+	public function getColumn($name)
+	{
+		$this->initColumns();
+		$l = strtolower($name);
+		if (isset($this->names[$l])) {
+			return $this->names[$l];
+
+		} else {
+			throw new DibiException("Result set has no column '$name'.");
+		}
+	}
+
+
+
+	/**
+	 * @param  string
+	 * @return bool
+	 */
+	public function hasColumn($name)
+	{
+		$this->initColumns();
+		return isset($this->names[strtolower($name)]);
+	}
+
+
+
+	/**
+	 * @return void
+	 */
+	protected function initColumns()
+	{
+		if ($this->columns === NULL) {
+			$this->columns = array();
+			foreach ($this->driver->getColumnsMeta() as $info) {
+				$this->columns[] = $this->names[$info['name']] = new DibiColumnInfo($this->driver, $info);
+			}
+		}
+	}
+
+}
+
+
+
+
+/**
+ * Reflection metadata class for a table or result set column.
+ *
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  */
 class DibiColumnInfo extends DibiObject
@@ -358,7 +449,6 @@ class DibiColumnInfo extends DibiObject
 	{
 		$this->driver = $driver;
 		$this->info = $info;
-		$this->type = self::detectType($this->info['nativetype']);
 	}
 
 
@@ -369,6 +459,16 @@ class DibiColumnInfo extends DibiObject
 	public function getName()
 	{
 		return $this->info['name'];
+	}
+
+
+
+	/**
+	 * @return string
+	 */
+	public function getFullName()
+	{
+		return $this->info['fullname'];
 	}
 
 
@@ -401,6 +501,9 @@ class DibiColumnInfo extends DibiObject
 	 */
 	public function getType()
 	{
+		if ($this->type === NULL) {
+			$this->type = self::detectType($this->info['nativetype']);
+		}
 		return $this->type;
 	}
 
@@ -472,7 +575,7 @@ class DibiColumnInfo extends DibiObject
 	 * @param  string
 	 * @return string
 	 */
-	public static function detectType($type)
+	private static function detectType($type)
 	{
 		static $patterns = array(
 			'BYTEA|BLOB|BIN' => dibi::BINARY,
@@ -504,8 +607,7 @@ class DibiColumnInfo extends DibiObject
 /**
  * Reflection metadata class for a foreign key.
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  * @todo
  */
@@ -553,8 +655,7 @@ class DibiForeignKeyInfo extends DibiObject
 /**
  * Reflection metadata class for a index or primary key.
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  */
 class DibiIndexInfo extends DibiObject

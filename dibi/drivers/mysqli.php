@@ -4,17 +4,10 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
- * @package    dibi
+ * @package    dibi\drivers
  */
 
 
@@ -36,9 +29,8 @@
  *   - 'lazy' - if TRUE, connection will be established only when required
  *   - 'resource' - connection resource (optional)
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
- * @package    dibi
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
+ * @package    dibi\drivers
  */
 class DibiMySqliDriver extends DibiObject implements IDibiDriver
 {
@@ -114,18 +106,15 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver
 				$ok = @mysqli_set_charset($this->connection, $config['charset']); // intentionally @
 			}
 			if (!$ok) {
-				$ok = @mysqli_query($this->connection, "SET NAMES '$config[charset]'"); // intentionally @
-				if (!$ok) {
-					throw new DibiDriverException(mysqli_error($this->connection), mysqli_errno($this->connection));
-				}
+				$this->query("SET NAMES '$config[charset]'");
 			}
 		}
 
 		if (isset($config['sqlmode'])) {
-			if (!@mysqli_query($this->connection, "SET sql_mode='$config[sqlmode]'")) { // intentionally @
-				throw new DibiDriverException(mysqli_error($this->connection), mysqli_errno($this->connection));
-			}
+			$this->query("SET sql_mode='$config[sqlmode]'");
 		}
+
+		$this->query("SET time_zone='" . date('P') . "'");
 
 		$this->buffered = empty($config['unbuffered']);
 	}
@@ -240,6 +229,17 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver
 	public function rollback($savepoint = NULL)
 	{
 		$this->query($savepoint ? "ROLLBACK TO SAVEPOINT $savepoint" : 'ROLLBACK');
+	}
+
+
+
+	/**
+	 * Is in transaction?
+	 * @return bool
+	 */
+	public function inTransaction()
+	{
+		return (bool) mysqli_fetch_field_direct(mysqli_query($this->connection, 'SELECT @@autocommit'), 0);
 	}
 
 
@@ -475,7 +475,7 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver
 			FROM INFORMATION_SCHEMA.COLUMNS
 			WHERE TABLE_NAME = $table AND TABLE_SCHEMA = DATABASE()
 		");*/
-		$this->query("SHOW COLUMNS FROM `$table`");
+		$this->query("SHOW FULL COLUMNS FROM `$table`");
 		$res = array();
 		while ($row = $this->fetch(TRUE)) {
 			$type = explode('(', $row['Type']);
@@ -487,6 +487,7 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver
 				'nullable' => $row['Null'] === 'YES',
 				'default' => $row['Default'],
 				'autoincrement' => $row['Extra'] === 'auto_increment',
+				'vendor' => $row,
 			);
 		}
 		$this->free();

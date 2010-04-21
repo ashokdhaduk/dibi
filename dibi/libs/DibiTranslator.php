@@ -4,14 +4,7 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
  * @package    dibi
@@ -22,8 +15,7 @@
 /**
  * dibi SQL translator.
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  */
 final class DibiTranslator extends DibiObject
@@ -226,7 +218,7 @@ final class DibiTranslator extends DibiObject
 
 						} else {
 							$v = $this->formatValue($v, $pair[1]);
-							$vx[] = $k . ($pair[1] === 'l' ? 'IN ' : ($v === 'NULL' ? 'IS ' : '= ')) . $v;
+							$vx[] = $k . ($pair[1] === 'l' || $pair[1] === 'in' ? 'IN ' : ($v === 'NULL' ? 'IS ' : '= ')) . $v;
 						}
 
 					} else {
@@ -256,12 +248,13 @@ final class DibiTranslator extends DibiObject
 				return implode(', ', $vx);
 
 
+			case 'in':// replaces scalar %in modifier!
 			case 'l': // (val, val, ...)
 				foreach ($value as $k => $v) {
 					$pair = explode('%', $k, 2); // split into identifier & modifier
 					$vx[] = $this->formatValue($v, isset($pair[1]) ? $pair[1] : (is_array($v) ? 'ex' : FALSE));
 				}
-				return '(' . ($vx ? implode(', ', $vx) : 'NULL') . ')';
+				return '(' . (($vx || $modifier === 'l') ? implode(', ', $vx) : 'NULL') . ')';
 
 
 			case 'v': // (key, key, ...) VALUES (val, val, ...)
@@ -295,13 +288,15 @@ final class DibiTranslator extends DibiObject
 					}
 				}
 				foreach ($vx as $k => $v) {
-					$vx[$k] = '(' . ($v ? implode(', ', $v) : 'NULL') . ')';
+					$vx[$k] = '(' . implode(', ', $v) . ')';
 				}
 				return '(' . implode(', ', $kx) . ') VALUES ' . implode(', ', $vx);
 
 			case 'by': // key ASC, key DESC
 				foreach ($value as $k => $v) {
-					if (is_string($k)) {
+					if (is_array($v)) {
+						$vx[] = $this->formatValue($v, 'ex');
+					} elseif (is_string($k)) {
 						$v = (is_string($v) && strncasecmp($v, 'd', 1)) || $v > 0 ? 'ASC' : 'DESC';
 						$vx[] = $this->delimite($k) . ' ' . $v;
 					} else {
@@ -319,20 +314,14 @@ final class DibiTranslator extends DibiObject
 				foreach ($value as $v) {
 					$vx[] = $this->formatValue($v, $modifier);
 				}
-				return $vx ? implode(', ', $vx) : 'NULL';
+				return implode(', ', $vx);
 			}
 		}
 
 
 		// with modifier procession
 		if ($modifier) {
-			if ($value instanceof IDibiVariable) {
-				return $value->toSql($this, $modifier);
-
-			} elseif ($value instanceof DateTime) {
-				$value = $value->format('U');
-
-			} elseif ($value !== NULL && !is_scalar($value)) {  // array is already processed
+			if ($value !== NULL && !is_scalar($value) && !($value instanceof DateTime)) {  // array is already processed
 				$this->hasError = TRUE;
 				return '**Unexpected type ' . gettype($value) . '**';
 			}
@@ -343,10 +332,12 @@ final class DibiTranslator extends DibiObject
 			case 'b':  // boolean
 				return $value === NULL ? 'NULL' : $this->driver->escape($value, $modifier);
 
-			case 'sn': // string or NULL
+			case 'sN': // string or NULL
+			case 'sn':
 				return $value == '' ? 'NULL' : $this->driver->escape($value, dibi::TEXT); // notice two equal signs
 
-			case 'in': // signed int or NULL
+			case 'iN': // signed int or NULL
+			case 'in': // deprecated
 				if ($value == '') $value = NULL;
 				// intentionally break omitted
 
@@ -376,7 +367,7 @@ final class DibiTranslator extends DibiObject
 						$value = (int) $value; // timestamp
 
 					} elseif (is_string($value)) {
-						$value = class_exists('DateTime', FALSE) ? new DateTime($value) : strtotime($value);
+						$value = new DateTime($value);
 					}
 					return $this->driver->escape($value, $modifier);
 				}
@@ -420,26 +411,25 @@ final class DibiTranslator extends DibiObject
 
 
 		// without modifier procession
-		if (is_string($value))
+		if (is_string($value)) {
 			return $this->driver->escape($value, dibi::TEXT);
 
-		if (is_int($value) || is_float($value))
+		} elseif (is_int($value) || is_float($value)) {
 			return rtrim(rtrim(number_format($value, 5, '.', ''), '0'), '.');
 
-		if (is_bool($value))
+		} elseif (is_bool($value)) {
 			return $this->driver->escape($value, dibi::BOOL);
 
-		if ($value === NULL)
+		} elseif ($value === NULL) {
 			return 'NULL';
 
-		if ($value instanceof IDibiVariable)
-			return $value->toSql($this, NULL);
+		} elseif ($value instanceof DateTime) {
+			return $this->driver->escape($value, dibi::DATETIME);
 
-		if ($value instanceof DateTime)
-			return $value = $value->format('U');
-
-		$this->hasError = TRUE;
-		return '**Unexpected ' . gettype($value) . '**';
+		} else {
+			$this->hasError = TRUE;
+			return '**Unexpected ' . gettype($value) . '**';
+		}
 	}
 
 

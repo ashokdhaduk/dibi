@@ -4,14 +4,7 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
  * @package    dibi
@@ -22,12 +15,13 @@
 /**
  * dibi SQL builder via fluent interfaces. EXPERIMENTAL!
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @package    dibi
  */
 class DibiFluent extends DibiObject implements IDataSource
 {
+	const REMOVE = FALSE;
+
 	/** @var array */
 	public static $masks = array(
 		'SELECT' => array('SELECT', 'DISTINCT', 'FROM', 'WHERE', 'GROUP BY',
@@ -41,7 +35,7 @@ class DibiFluent extends DibiObject implements IDataSource
 	public static $modifiers = array(
 		'SELECT' => '%n',
 		'FROM' => '%n',
-		'IN' => '%l',
+		'IN' => '%in',
 		'VALUES' => '%l',
 		'SET' => '%a',
 		'WHERE' => '%and',
@@ -140,14 +134,14 @@ class DibiFluent extends DibiObject implements IDataSource
 			$this->cursor = & $this->clauses[$clause];
 
 			// TODO: really delete?
-			if ($args === array(FALSE)) {
+			if ($args === array(self::REMOVE)) {
 				$this->cursor = NULL;
 				return $this;
 			}
 
 			if (isset(self::$separators[$clause])) {
 				$sep = self::$separators[$clause];
-				if ($sep === FALSE) {
+				if ($sep === FALSE) { // means: replace
 					$this->cursor = array();
 
 				} elseif (!empty($this->cursor)) {
@@ -157,7 +151,7 @@ class DibiFluent extends DibiObject implements IDataSource
 
 		} else {
 			// append to currect flow
-			if ($args === array(FALSE)) {
+			if ($args === array(self::REMOVE)) {
 				return $this;
 			}
 
@@ -183,13 +177,27 @@ class DibiFluent extends DibiObject implements IDataSource
 	{
 		$this->cursor = & $this->clauses[self::_formatClause($clause)];
 
-		if ($remove) {
+		if ($remove) { // deprecated, use removeClause
+			trigger_error(__METHOD__ . '(..., TRUE) is deprecated; use removeClause() instead.', E_USER_NOTICE);
 			$this->cursor = NULL;
 
 		} elseif ($this->cursor === NULL) {
 			$this->cursor = array();
 		}
 
+		return $this;
+	}
+
+
+
+	/**
+	 * Removes a clause.
+	 * @param  string clause name
+	 * @return DibiFluent  provides a fluent interface
+	 */
+	public function removeClause($clause)
+	{
+		$this->clauses[self::_formatClause($clause)] = NULL;
 		return $this;
 	}
 
@@ -441,17 +449,20 @@ class DibiFluent extends DibiObject implements IDataSource
 			$s .= 'By';
 			trigger_error("Did you mean '$s'?", E_USER_NOTICE);
 		}
-		return strtoupper(preg_replace('#[A-Z]#', ' $0', $s));
+		return strtoupper(preg_replace('#[a-z](?=[A-Z])#', '$0 ', $s));
 
 	}
 
-}
 
 
-// PHP < 5.2 compatibility
-if (!function_exists('array_fill_keys')) {
-	function array_fill_keys($keys, $value)
+	public function __clone()
 	{
-		return array_combine($keys, array_fill(0, count($keys), $value));
+		// remove references
+		foreach ($this->clauses as $clause => $val) {
+			$this->clauses[$clause] = & $val;
+			unset($val);
+		}
+		$this->cursor = & $foo;
 	}
+
 }

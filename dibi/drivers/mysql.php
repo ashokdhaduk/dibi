@@ -4,17 +4,10 @@
  * dibi - tiny'n'smart database abstraction layer
  * ----------------------------------------------
  *
- * Copyright (c) 2005, 2009 David Grudl (http://davidgrudl.com)
- *
- * This source file is subject to the "dibi license" that is bundled
- * with this package in the file license.txt.
- *
- * For more information please see http://dibiphp.com
- *
- * @copyright  Copyright (c) 2005, 2009 David Grudl
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
  * @license    http://dibiphp.com/license  dibi license
  * @link       http://dibiphp.com
- * @package    dibi
+ * @package    dibi\drivers
  */
 
 
@@ -36,9 +29,8 @@
  *   - 'lazy' - if TRUE, connection will be established only when required
  *   - 'resource' - connection resource (optional)
  *
- * @author     David Grudl
- * @copyright  Copyright (c) 2005, 2009 David Grudl
- * @package    dibi
+ * @copyright  Copyright (c) 2005, 2010 David Grudl
+ * @package    dibi\drivers
  */
 class DibiMySqlDriver extends DibiObject implements IDibiDriver
 {
@@ -120,10 +112,7 @@ class DibiMySqlDriver extends DibiObject implements IDibiDriver
 				$ok = @mysql_set_charset($config['charset'], $this->connection); // intentionally @
 			}
 			if (!$ok) {
-				$ok = @mysql_query("SET NAMES '$config[charset]'", $this->connection); // intentionally @
-				if (!$ok) {
-					throw new DibiDriverException(mysql_error($this->connection), mysql_errno($this->connection));
-				}
+				$this->query("SET NAMES '$config[charset]'");
 			}
 		}
 
@@ -134,10 +123,10 @@ class DibiMySqlDriver extends DibiObject implements IDibiDriver
 		}
 
 		if (isset($config['sqlmode'])) {
-			if (!@mysql_query("SET sql_mode='$config[sqlmode]'", $this->connection)) { // intentionally @
-				throw new DibiDriverException(mysql_error($this->connection), mysql_errno($this->connection));
-			}
+			$this->query("SET sql_mode='$config[sqlmode]'");
 		}
+
+		$this->query("SET time_zone='" . date('P') . "'");
 
 		$this->buffered = empty($config['unbuffered']);
 	}
@@ -256,6 +245,17 @@ class DibiMySqlDriver extends DibiObject implements IDibiDriver
 	public function rollback($savepoint = NULL)
 	{
 		$this->query($savepoint ? "ROLLBACK TO SAVEPOINT $savepoint" : 'ROLLBACK');
+	}
+
+
+
+	/**
+	 * Is in transaction?
+	 * @return bool
+	 */
+	public function inTransaction()
+	{
+		return (bool) mysql_fetch_field(mysql_query('SELECT @@autocommit', $this->connection));
 	}
 
 
@@ -472,7 +472,7 @@ class DibiMySqlDriver extends DibiObject implements IDibiDriver
 	 */
 	public function getColumns($table)
 	{
-		$this->query("SHOW COLUMNS FROM `$table`");
+		$this->query("SHOW FULL COLUMNS FROM `$table`");
 		$res = array();
 		while ($row = $this->fetch(TRUE)) {
 			$type = explode('(', $row['Type']);
@@ -484,6 +484,7 @@ class DibiMySqlDriver extends DibiObject implements IDibiDriver
 				'nullable' => $row['Null'] === 'YES',
 				'default' => $row['Default'],
 				'autoincrement' => $row['Extra'] === 'auto_increment',
+				'vendor' => $row,
 			);
 		}
 		$this->free();
